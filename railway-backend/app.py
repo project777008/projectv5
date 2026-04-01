@@ -155,6 +155,8 @@ init_firebase()
 # Runs once on startup. If admin document already exists in
 # Firestore it is NOT overwritten, preserving the current hash.
 # ─────────────────────────────────────────────────────────────
+def now_iso():
+    return datetime.datetime.utcnow().isoformat()
 def bootstrap_admin():
     if not FIREBASE_READY:
         return
@@ -193,8 +195,7 @@ bootstrap_admin()
 # ─────────────────────────────────────────────────────────────
 # FIRESTORE HELPERS
 # ─────────────────────────────────────────────────────────────
-def now_iso():
-    return datetime.datetime.utcnow().isoformat()
+
 
 def generate_password(length=12):
     """Generate a random secure password for new users."""
