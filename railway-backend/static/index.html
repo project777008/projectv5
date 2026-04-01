@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital OD System</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Firebase v9 compat (CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- Config (MUST be first — defines API_BASE, FIREBASE_CONFIG, devLog) -->
+  <script src="js/config.js"></script>
+</head>
+<body>
+
+<!-- ══════════════ LOADING ══════════════ -->
+<div id="loading-overlay">
+  <div style="text-align:center">
+    <div style="display:flex;justify-content:center;margin-bottom:16px">
+      <div class="loader-dot"></div>
+      <div class="loader-dot"></div>
+      <div class="loader-dot"></div>
+    </div>
+    <div style="color:rgba(255,255,255,0.3);font-size:13px;letter-spacing:0.1em;text-transform:uppercase">Connecting to Firebase…</div>
+  </div>
+</div>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="login-screen" style="display:none">
+
+  <!-- ── FIRST-RUN SETUP (hidden until /api/health says needsSetup) ── -->
+  <div class="login-card" id="setup-panel" style="display:none">
+    <div class="login-brand">OD Portal</div>
+    <div class="login-sub" style="color:var(--accent)">First-Time Setup</div>
+    <p style="font-size:13px;color:var(--muted);margin:8px 0 20px">
+      No admin account exists yet. Choose your admin ID and password to get started.
+    </p>
+    <div class="field">
+      <label>Admin ID</label>
+      <input type="text" id="setup-admin-id" placeholder="e.g. ADMIN001" autocomplete="off" value="ADMIN001">
+    </div>
+    <div class="field">
+      <label>Admin Password</label>
+      <div class="pass-reveal">
+        <input type="password" id="setup-pass" placeholder="Min 10 characters">
+        <button class="pass-toggle" type="button" onclick="togglePass('setup-pass',this)">👁</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <div class="pass-reveal">
+        <input type="password" id="setup-confirm" placeholder="Repeat password">
+        <button class="pass-toggle" type="button" onclick="togglePass('setup-confirm',this)">👁</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="setup-btn" onclick="doSetup()">Create Admin Account</button>
+    <div class="error-msg" id="setup-error"></div>
+  </div>
+
+  <!-- ── NORMAL LOGIN ── -->
+  <div class="login-card" id="login-panel">
+    <div class="login-brand">OD Portal</div>
+    <div class="login-sub">Digital On-Duty System</div>
+    <div class="firebase-badge" id="fb-status-badge">
+      <div class="dot"></div>
+      <span id="fb-status-text">Firebase Connected</span>
+    </div>
+    <div class="field">
+      <label>User ID</label>
+      <input type="text" id="login-id" placeholder="Enter your User ID" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pass-reveal">
+        <input type="password" id="login-pass" placeholder="Enter your password">
+        <button class="pass-toggle" type="button" onclick="togglePass('login-pass',this)">👁</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Sign In →</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════ APP ══════════════ -->
+<div id="app">
+  <nav class="topbar">
+    <div class="topbar-brand">OD <span>Portal</span></div>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="user-avatar" id="nav-avatar">U</div>
+        <div>
+          <div style="font-size:13px;font-weight:500" id="nav-name">User</div>
+          <div style="font-size:11px;color:#888" id="nav-id-display"></div>
+        </div>
+      </div>
+      <span class="role-badge" id="nav-role-badge">Role</span>
+      <button class="logout-btn" onclick="doLogout()">Log out</button>
+    </div>
+  </nav>
+
+  <!-- ══ ADMIN PAGE ══ -->
+  <div id="page-admin" class="page">
+    <div class="page-header">
+      <div class="page-title">Admin Dashboard</div>
+      <div class="page-desc">Create and manage all user accounts for the department</div>
+    </div>
+    <div class="grid-4">
+      <div class="stat-card accent"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Total Users</div></div>
+      <div class="stat-card purple"><div class="stat-num" id="stat-hods">—</div><div class="stat-label">HODs</div></div>
+      <div class="stat-card blue"><div class="stat-num" id="stat-profs">—</div><div class="stat-label">Professors</div></div>
+      <div class="stat-card green"><div class="stat-num" id="stat-students">—</div><div class="stat-label">Students</div></div>
+    </div>
+    <div class="grid-2" style="margin-top:20px">
+      <div class="card">
+        <div class="card-title">Create New Account</div>
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" id="new-name" placeholder="e.g. Dr. Priya Sharma">
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select id="new-role">
+            <option value="student">Student</option>
+            <option value="professor">Professor</option>
+            <option value="hod">HOD (Head of Department)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Department / Year</label>
+          <input type="text" id="new-dept" placeholder="e.g. CSE – 3rd Year">
+        </div>
+        <button class="btn btn-primary" id="create-btn" onclick="createAccount()">Generate Credentials</button>
+        <div class="cred-box" id="cred-display">
+          <div class="cred-row"><span class="cred-key">User ID</span><span class="cred-val" id="cred-id">—</span></div>
+          <div class="cred-row"><span class="cred-key">Password</span><span class="cred-val" id="cred-pass">—</span></div>
+          <div class="cred-row"><span class="cred-key">Role</span><span class="cred-val" id="cred-role">—</span></div>
+          <div class="cred-row"><span class="cred-key">Name</span><span class="cred-val" id="cred-name">—</span></div>
+          <div style="margin-top:12px;font-size:11px;color:var(--accent)">⚠ Save this password now — it is shown ONCE and cannot be retrieved. The system stores only a secure hash.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">All Users <span style="font-size:13px;color:var(--muted);font-weight:400">(including passwords)</span></div>
+        <div id="user-list"><div class="spinner">Loading users…</div></div>
+      </div>
+    </div>
+    <div class="card" style="max-width:500px;margin-top:20px">
+      <div class="card-title">Change Admin Password</div>
+      <div class="field"><label>Current Password</label><input type="password" id="cur-pass" placeholder="Enter current password"></div>
+      <div class="field"><label>New Password</label><input type="password" id="new-pass" placeholder="Min 10 characters"></div>
+      <div class="field"><label>Confirm New Password</label><input type="password" id="confirm-pass" placeholder="Repeat new password"></div>
+      <button class="btn btn-primary" id="change-pass-btn" onclick="changePassword()">Update Password</button>
+      <div class="error-msg" id="pass-error"></div>
+    </div>
+  </div>
+
+  <!-- ══ STUDENT PAGE ══ -->
+  <div id="page-student" class="page">
+    <div class="page-header">
+      <div class="page-title">Student Portal</div>
+      <div class="page-desc">Submit and track your On-Duty requests</div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchStudentTab('apply', this)">Apply for OD</div>
+      <div class="tab" onclick="switchStudentTab('track', this)">Track Requests</div>
+    </div>
+    <div id="stab-apply">
+      <div class="flow-steps">
+        <div class="flow-step"><div class="step-dot active">1</div><div><div style="font-weight:600;font-size:13px">Student Submits</div><div style="color:var(--muted);font-size:11px">You apply here</div></div></div>
+        <div class="flow-arrow"></div>
+        <div class="flow-step"><div class="step-dot wait">2</div><div><div style="font-weight:600;font-size:13px">HOD Reviews</div><div style="color:var(--muted);font-size:11px">HOD approves first</div></div></div>
+        <div class="flow-arrow"></div>
+        <div class="flow-step"><div class="step-dot wait">3</div><div><div style="font-weight:600;font-size:13px">Professor Reviews</div><div style="color:var(--muted);font-size:11px">Assigned professor decides</div></div></div>
+        <div class="flow-arrow"></div>
+        <div class="flow-step"><div class="step-dot wait">4</div><div><div style="font-weight:600;font-size:13px">OD Approved</div><div style="color:var(--muted);font-size:11px">Certificate generated</div></div></div>
+      </div>
+      <div class="card" style="max-width:600px">
+        <div class="card-title">New OD Application</div>
+        <div class="field"><label>Select Professor</label><select id="od-professor"><option value="">Loading professors…</option></select></div>
+        <div class="field"><label>Reason for OD</label><textarea id="od-reason" placeholder="Describe the purpose of your OD request in detail…"></textarea></div>
+        <div class="form-row">
+          <div class="field"><label>Date</label><input type="date" id="od-date"></div>
+          <div class="field">
+            <label>Duration</label>
+            <select id="od-duration">
+              <option value="Full Day">Full Day</option>
+              <option value="Half Day (Morning)">Half Day – Morning</option>
+              <option value="Half Day (Afternoon)">Half Day – Afternoon</option>
+              <option value="Custom Hours">Custom Hours</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Supporting Details (Optional)</label><input type="text" id="od-details" placeholder="e.g. Event name, venue, organizer…"></div>
+        <button class="btn btn-primary" id="submit-od-btn" onclick="submitOD()">Submit to HOD →</button>
+      </div>
+    </div>
+    <div id="stab-track" style="display:none">
+      <div class="card">
+        <div class="card-title">My OD Requests</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Request ID</th><th>Professor</th><th>Reason</th><th>Date</th><th>Duration</th><th>Submitted</th><th>Status</th><th>Document</th></tr></thead>
+            <tbody id="student-requests-table"><tr><td colspan="8"><div class="spinner">Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ HOD PAGE ══ -->
+  <div id="page-hod" class="page">
+    <div class="page-header">
+      <div class="page-title">HOD Dashboard</div>
+      <div class="page-desc">Review all student OD applications — approved ones are forwarded to the assigned professor</div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchHodTab('pending', this)">
+        Pending Approval
+        <span id="hod-pending-count" style="background:var(--purple);color:white;border-radius:100px;padding:2px 8px;font-size:11px;margin-left:6px">0</span>
+      </div>
+      <div class="tab" onclick="switchHodTab('history', this)">History</div>
+    </div>
+    <div id="htab-pending"><div id="hod-pending-cards"><div class="spinner">Loading pending requests…</div></div></div>
+    <div id="htab-history" style="display:none">
+      <div class="card">
+        <div class="card-title">All Processed Applications</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Request ID</th><th>Student</th><th>Professor</th><th>Reason</th><th>Date</th><th>HOD Decision</th><th>Prof Status</th><th>Processed</th></tr></thead>
+            <tbody id="hod-history-table"><tr><td colspan="8"><div class="spinner">Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PROFESSOR PAGE ══ -->
+  <div id="page-professor" class="page">
+    <div class="page-header">
+      <div class="page-title">Professor Dashboard</div>
+      <div class="page-desc">Review OD applications assigned to you — only HOD-approved requests appear here</div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchProfTab('pending', this)">
+        Pending Applications
+        <span id="pending-count" style="background:var(--accent);color:white;border-radius:100px;padding:2px 8px;font-size:11px;margin-left:6px">0</span>
+      </div>
+      <div class="tab" onclick="switchProfTab('history', this)">History</div>
+    </div>
+    <div id="ptab-pending"><div id="pending-cards"><div class="spinner">Loading pending requests…</div></div></div>
+    <div id="ptab-history" style="display:none">
+      <div class="card">
+        <div class="card-title">Processed Applications</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Request ID</th><th>Student</th><th>Reason</th><th>Date</th><th>Duration</th><th>Status</th><th>Processed</th></tr></thead>
+            <tbody id="history-table"><tr><td colspan="7"><div class="spinner">Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ OD DOCUMENT MODAL ══════════════ -->
+<div class="modal-overlay" id="doc-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div style="margin-bottom:20px">
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:4px">OD Certificate</div>
+      <div style="color:var(--muted);font-size:13px">Digitally approved & authenticated document</div>
+    </div>
+    <div id="od-doc-content"></div>
+    <div style="margin-top:20px;display:flex;gap:12px">
+      <button class="btn btn-green btn-sm" onclick="printDoc()">⬇ Download / Print</button>
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TOAST ══════════════ -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ══════════════ SCRIPTS ══════════════ -->
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/student.js"></script>
+<script src="js/hod.js"></script>
+<script src="js/professor.js"></script>
+
+</body>
+</html>
