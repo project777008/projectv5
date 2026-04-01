@@ -149,14 +149,18 @@ def init_firebase():
 
 init_firebase()
 
+# ─────────────────────────────────────────────────────────────
+# BOOTSTRAP HELPERS
+# ─────────────────────────────────────────────────────────────
+def now_iso():
+    """Returns current UTC time in ISO format."""
+    return datetime.datetime.utcnow().isoformat()
 
 # ─────────────────────────────────────────────────────────────
 # BOOTSTRAP ADMIN ACCOUNT
 # Runs once on startup. If admin document already exists in
 # Firestore it is NOT overwritten, preserving the current hash.
 # ─────────────────────────────────────────────────────────────
-def now_iso():
-    return datetime.datetime.utcnow().isoformat()
 def bootstrap_admin():
     if not FIREBASE_READY:
         return
@@ -178,17 +182,18 @@ def bootstrap_admin():
 
     admin_doc = {
         "id":         ADMIN_ID,
-        "passHash":   ADMIN_PASSWORD_HASH,   # bcrypt hash only — no plain-text
+        "passHash":   ADMIN_PASSWORD_HASH,  # bcrypt hash only — no plain-text
         "role":       "admin",
         "name":       ADMIN_NAME,
         "dept":       "Administration",
-        "createdAt":  now_iso(),
+        "createdAt":  now_iso(), # This will now work because now_iso is defined above
         "createdBy":  "system",
         "setupDone":  True,
     }
     admin_ref.set(admin_doc)
     print(f"✅ Admin account {ADMIN_ID} bootstrapped from ADMIN_PASSWORD_HASH env var.")
 
+# Now we can safely call it
 bootstrap_admin()
 
 
