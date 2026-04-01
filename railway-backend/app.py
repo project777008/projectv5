@@ -149,18 +149,14 @@ def init_firebase():
 
 init_firebase()
 
-# ─────────────────────────────────────────────────────────────
-# BOOTSTRAP HELPERS
-# ─────────────────────────────────────────────────────────────
-def now_iso():
-    """Returns current UTC time in ISO format."""
-    return datetime.datetime.utcnow().isoformat()
 
 # ─────────────────────────────────────────────────────────────
 # BOOTSTRAP ADMIN ACCOUNT
 # Runs once on startup. If admin document already exists in
 # Firestore it is NOT overwritten, preserving the current hash.
 # ─────────────────────────────────────────────────────────────
+def now_iso():
+    return datetime.datetime.utcnow().isoformat()
 def bootstrap_admin():
     if not FIREBASE_READY:
         return
@@ -182,36 +178,29 @@ def bootstrap_admin():
 
     admin_doc = {
         "id":         ADMIN_ID,
-        "passHash":   ADMIN_PASSWORD_HASH,  # bcrypt hash only — no plain-text
+        "passHash":   ADMIN_PASSWORD_HASH,   # bcrypt hash only — no plain-text
         "role":       "admin",
         "name":       ADMIN_NAME,
         "dept":       "Administration",
-        "createdAt":  now_iso(), # This will now work because now_iso is defined above
+        "createdAt":  now_iso(),
         "createdBy":  "system",
         "setupDone":  True,
     }
     admin_ref.set(admin_doc)
     print(f"✅ Admin account {ADMIN_ID} bootstrapped from ADMIN_PASSWORD_HASH env var.")
 
-# Now we can safely call it
 bootstrap_admin()
 
 
 # ─────────────────────────────────────────────────────────────
 # FIRESTORE HELPERS
 # ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# FIRESTORE HELPERS
+# ─────────────────────────────────────────────────────────────
+def now_iso():
+    return datetime.datetime.utcnow().isoformat()
 
-
-def generate_password(length=12):
-    """Generate a random secure password for new users."""
-    # At least one each of: uppercase, lowercase, digit, symbol
-    chars = string.ascii_letters + string.digits + "!@#$%^&*"
-    while True:
-        pwd = ''.join(random.choices(chars, k=length))
-        if (any(c.isupper() for c in pwd)
-                and any(c.islower() for c in pwd)
-                and any(c.isdigit() for c in pwd)):
-            return pwd
 
 def get_user(user_id):
     if not FIREBASE_READY or not user_id:
@@ -351,14 +340,15 @@ def create_user():
     if role not in ("student", "professor", "hod"):
         return err("role must be student, professor, or hod", 400, "INVALID_ROLE")
 
-    # Generate unique ID — retry on collision
-    prefix_map = {"professor": "PROF", "student": "STU", "hod": "HOD"}
+    # Generate unique ID — first word of name + 4 random digits, retry on collision
+    first_name = name.strip().split()[0] if name.strip() else "User"
     for _ in range(5):
-        new_id = prefix_map[role] + str(random.randint(1000, 9999))
+        new_id = first_name + str(random.randint(1000, 9999))
         if not db.collection("users").document(new_id).get().exists:
             break
 
-    plain_password = generate_password()
+    # Password = OD + name (no spaces) + 3 random digits
+    plain_password = "OD" + name.replace(" ", "") + str(random.randint(100, 999))
     hashed         = hash_password(plain_password)
 
     user_doc = {
